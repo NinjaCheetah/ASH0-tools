@@ -197,6 +197,7 @@ u8 *CxUncompressAsh(const u8 *inbuf, u32 size, u32 *outlen, int symBits, int dis
 int main(const int argc, char **argv) {
 	// Syntax: ashdec <infile> [option...]
 	if (argc < 2) {
+		puts("ashdec v1.0 by Garhoogin and NinjaCheetah\n");
 		puts("Usage: ashdec <infile> [optional arguments]\n");
 		puts("Arguments:");
 		puts(" -o <f> Specify output file path");
