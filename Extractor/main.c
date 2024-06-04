@@ -1,15 +1,12 @@
 #define _CRT_SECURE_NO_WARNINGS
-#include <stdlib.h>
 #include <stdio.h>
-#include <memory.h>
+#include <stdlib.h>
+#include <string.h>
 #include <stdint.h>
 
 typedef uint32_t u32;
 typedef uint16_t u16;
 typedef uint8_t u8;
-
-#define SYM_BITS   9
-#define DIST_BITS  11
 
 
 #define TREE_RIGHT    0x80000000
@@ -27,7 +24,7 @@ static void AbortInvalidData(int line) {
 
 
 u32 BigToLittle32(u32 i)  {
-    return ((i >> 24) | (i << 24) | ((i & 0x00FF0000) >> 8) | ((i & 0x0000FF00) << 8));
+	return ((i >> 24) | (i << 24) | ((i & 0x00FF0000) >> 8) | ((i & 0x0000FF00) << 8));
 }
 
 
@@ -102,10 +99,10 @@ u32 CxAshReadTree(CxBitReader *reader, int width, u32 *leftTree, u32 *rightTree)
 		} else {
 			symRoot = CxBitReaderReadBits(reader, width);
 			do {
-				u32 r12 = *--work;
-				u32 idx = r12 & TREE_VAL_MASK;
+				u32 nodeval = *--work;
+				u32 idx = nodeval & TREE_VAL_MASK;
 				nNodes--;
-				if (r12 & TREE_RIGHT) {
+				if (nodeval & TREE_RIGHT) {
 					rightTree[idx] = symRoot;
 					symRoot = idx;
 				} else {
@@ -122,7 +119,7 @@ u32 CxAshReadTree(CxBitReader *reader, int width, u32 *leftTree, u32 *rightTree)
 }
 
 
-u8 *CxUncompressAsh(const u8 *inbuf, u32 size, u32 *outlen) {
+u8 *CxUncompressAsh(const u8 *inbuf, u32 size, u32 *outlen, int symBits, int distBits) {
 	u32 uncompSize = BigToLittle32(*(u32 *) (inbuf + 4)) & 0x00FFFFFF;
 	u32 outSize = uncompSize;
 	
@@ -133,8 +130,8 @@ u8 *CxUncompressAsh(const u8 *inbuf, u32 size, u32 *outlen) {
 	CxBitReaderInit(&reader, inbuf, size, BigToLittle32(*(const u32 *) (inbuf + 0x8)));
 	CxBitReaderInit(&reader2, inbuf, size, 0xC);
 	
-	u32 symMax = (1 << SYM_BITS);
-	u32 distMax = (1 << DIST_BITS);
+	u32 symMax = (1 << symBits);
+	u32 distMax = (1 << distBits);
 	
 	//HACK, pointer to RAM
 	u32 *symLeftTree   = calloc(2 * symMax - 1, sizeof(u32));
@@ -143,8 +140,8 @@ u8 *CxUncompressAsh(const u8 *inbuf, u32 size, u32 *outlen) {
 	u32 *distRightTree = calloc(2 * distMax - 1, sizeof(u32));
 	
 	u32 symRoot, distRoot;
-	symRoot = CxAshReadTree(&reader2, SYM_BITS, symLeftTree, symRightTree);
-	distRoot = CxAshReadTree(&reader, DIST_BITS, distLeftTree, distRightTree);
+	symRoot = CxAshReadTree(&reader2, symBits, symLeftTree, symRightTree);
+	distRoot = CxAshReadTree(&reader, distBits, distLeftTree, distRightTree);
 	
 	//main uncompress loop
 	do {
@@ -192,22 +189,50 @@ u8 *CxUncompressAsh(const u8 *inbuf, u32 size, u32 *outlen) {
 }
 
 
+
 int main(int argc, char **argv) {
-	if (argc != 2) return 0;
+	//syntax: ashdec <infile> [option...]
+	if (argc < 2) {
+		puts("Usage: ashdec <infile> [option...]\n");
+		puts("Options:");
+		puts(" -o <f> Specify output file path");
+		puts(" -d <n> Specify distance tree bits  (default: 11)");
+		puts(" -l <n> Specify length tree bits    (default:  9)");
+		puts("");
+		return 1;
+	}
 	
-	FILE *fp = fopen(argv[1], "rb");
+	//process command line string
+	const char *outpath = NULL;
+	const char *inpath = argv[1];
+	int nSymBits = 9, nDistBits = 11; //defaults
+	for (int i = 2; i < argc; i++) {
+		if (strcmp(argv[i], "-o") == 0) {
+			i++;
+			if (i < argc) outpath = argv[i];
+		} else if (strcmp(argv[i], "-d") == 0) {
+			i++;
+			if (i < argc) nDistBits = atoi(argv[i]);
+		} else if (strcmp(argv[i], "-l") == 0) {
+			i++;
+			if (i < argc) nDistBits = atoi(argv[i]);
+		}
+	}
+	
+	FILE *fp = fopen(inpath, "rb");
 	if (fp == NULL) {
-		printf("Could not open file\n");
+		fprintf(stderr, "Could not open %s for read access.\n", inpath);
 		return 1;
 	}
 
-	u32 magic;
-	fread(&magic, sizeof(magic), 1, fp);
-	if ((BigToLittle32(magic) & 0xFFFFFF00) != 0x41534800) {
+	char magic[4];
+	fread(magic, sizeof(magic), 1, fp);
+	if (memcmp(magic, "ASH", 3)) {
 		printf("This is not a valid ASH file\n");
 		return 1;
 	}
 
+	//read in file
 	u32 size;
 	fseek(fp, 0, SEEK_END);
 	size = ftell(fp);
@@ -217,19 +242,26 @@ int main(int argc, char **argv) {
 	fread(inbuf, 1, size, fp);
 	fclose(fp);
 	
+	//try decompress
 	u32 uncompSize;
-	u8 *uncomp = CxUncompressAsh(inbuf, size, &uncompSize);
+	u8 *uncomp = CxUncompressAsh(inbuf, size, &uncompSize, nSymBits, nDistBits);
 
-	char str[1024];
-	sprintf(str, "%s.arc", argv[1]);
-	FILE *out = fopen(str, "wb");
-	if (out == NULL) {
-		printf("Could not create/write file\n");
+	//get output file name (if not specified)
+	char strbuf[1024];
+	if (outpath == NULL) {
+		//if no output specified, append .arc
+		sprintf(strbuf, "%s.arc", argv[1]);
+		outpath = strbuf;
+	}
+	
+	fp = fopen(outpath, "wb");
+	if (fp == NULL) {
+		fprintf(stderr, "Could not open %s for write access.\n", outpath);
 		return 1;
 	}
 
-	fwrite(uncomp, 1, uncompSize, out);
+	fwrite(uncomp, 1, uncompSize, fp);
 	free(uncomp);
-	fclose(out);
+	fclose(fp);
 	return 0;
 }
