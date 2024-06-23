@@ -2,13 +2,13 @@ TARGET_EXEC ?= ashdec
 
 CC = gcc
 CFLAGS = -Wall -O2
-DBGFLAGS = -g
+DBGFLAGS = -Wall -g
 
 all:
 	$(CC) main.c $(CFLAGS) -o $(TARGET_EXEC)
 
 debug:
-	$(CC) main.c $(CFLAGS) $(DBGFLAGS) -o $(TARGET_EXEC)
+	$(CC) main.c $(DBGFLAGS) -o $(TARGET_EXEC)
 
 .PHONY: clean
 
