@@ -211,7 +211,7 @@ int main(const int argc, char **argv) {
 	const char *outpath = NULL;
 	const char *inpath = argv[1];
 	// Default values. These work for ASH0 files found in the System Menu and Animal Crossing: City Folk. ASH0 files
-	// found in My Pokemon Ranch require setting the distance tree bits to 15 instead.
+	// found in My Pokémon Ranch require setting the distance tree bits to 15 instead.
 	int nSymBits = 9, nDistBits = 11;
 	for (int i = 2; i < argc; i++) {
 		if (strcmp(argv[i], "-o") == 0) {
@@ -236,7 +236,7 @@ int main(const int argc, char **argv) {
 	// Read the magic number and ensure it's actually "ASH0".
 	char magic[4];
 	fread(magic, sizeof(magic), 1, fp);
-	if (memcmp(magic, "ASH0", 4)) {
+	if (memcmp(magic, "ASH0", 4) != 0) {
 		printf("This is not a valid ASH file!\n");
 		return 1;
 	}
@@ -253,6 +253,7 @@ int main(const int argc, char **argv) {
 	// Try to decompress the data.
 	u32 decompSize;
 	u8 *decomp = CxUncompressAsh(inbuf, size, &decompSize, nSymBits, nDistBits);
+	free(inbuf);
 
 	// Set output file name (if one is not specified).
 	if (outpath == NULL) {
