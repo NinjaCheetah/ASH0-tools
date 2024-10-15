@@ -48,7 +48,6 @@ typedef struct BITSTREAM_ {
 } BITSTREAM;
 
 
-
 // ----- bit stream
 
 static void CxiBitStreamCreate(BITSTREAM *stream) {
@@ -80,43 +79,25 @@ static void CxiBitStreamWrite(BITSTREAM *stream, int bit) {
 	stream->length++;
 }
 
-static void *CxiBitStreamGetBytes(BITSTREAM *stream, int wordAlign, int beBytes, int beBits, unsigned int *size) {
-	//allocate buffer
+static void *CxiBitStreamGetBytes(BITSTREAM *stream, unsigned int *size) {
+	// workAlign is always true for this case, so don't have it as a parameter
+	// allocate buffer
 	unsigned int outSize = stream->nWords * 4;
-	if (!wordAlign) {
-		//nBitsInLast word is 32 if last word is full, 0 if empty.
-		if (stream->nBitsInLastWord <= 24) outSize--;
-		if (stream->nBitsInLastWord <= 16) outSize--;
-		if (stream->nBitsInLastWord <=  8) outSize--;
-		if (stream->nBitsInLastWord <=  0) outSize--;
-	}
-	unsigned char *outbuf = (unsigned char *) calloc(outSize, 1);
+	unsigned char *outbuf = calloc(outSize, 1);
 
 	//this function handles converting byte and bit orders from the internal
 	//representation. Internally, we store the bit sequence as an array of
 	//words, where the first bits are inserted at the most significant bit.
-	//
 
 	for (unsigned int i = 0; i < outSize; i++) {
-		int byteShift = 8 * ((beBytes) ? (3 - (i % 4)) : (i % 4));
+		int byteShift = 8 * (3 - (i % 4));
 		uint32_t word = stream->bits[i / 4];
 		uint8_t byte = (word >> byteShift) & 0xFF;
-
-		//if little endian bit order, swap here
-		if (!beBits) {
-			uint8_t temp = byte;
-			byte = 0;
-			for (int j = 0; j < 8; j++) byte |= ((temp >> j) & 1) << (7 - j);
-		}
 		outbuf[i] = byte;
 	}
 
 	*size = outSize;
 	return outbuf;
-}
-
-static void CxiBitStreamWriteBits(BITSTREAM *stream, uint32_t bits, int nBits) {
-	for (int i = 0; i < nBits; i++) CxiBitStreamWrite(stream, (bits >> i) & 1);
 }
 
 static void CxiBitStreamWriteBitsBE(BITSTREAM *stream, uint32_t bits, int nBits) {
@@ -162,7 +143,7 @@ static unsigned int CxiCompareMemory(const unsigned char *b1, const unsigned cha
 
 }
 
-static unsigned int CxiSearchLZ(const unsigned char *buffer, unsigned int size, unsigned int curpos, unsigned int minDistance, unsigned int maxDistance, unsigned int maxLength, unsigned int *pDistance) {
+static unsigned int CxiSearchLZ(const unsigned char *buffer, unsigned int size, unsigned int curpos, unsigned int maxDistance, unsigned int maxLength, unsigned int *pDistance) {
 	//nProcessedBytes = curpos
 	unsigned int nBytesLeft = size - curpos;
 
@@ -177,8 +158,8 @@ static unsigned int CxiSearchLZ(const unsigned char *buffer, unsigned int size, 
 	unsigned int nMaxCompare = maxLength;
 	if (nMaxCompare > nBytesLeft) nMaxCompare = nBytesLeft;
 
-	//begin searching backwards.
-	for (unsigned int j = minDistance; j <= maxDistance; j++) {
+	//begin searching backwards, minimum distance is always 1
+	for (unsigned int j = 1; j <= maxDistance; j++) {
 		//compare up to 0xF bytes, at most j bytes.
 		unsigned int nCompare = maxLength;
 		if (nCompare > j) nCompare = j;
@@ -282,7 +263,7 @@ static void CxiHuffmanConstructTree(CxiHuffNode *nodes, int nNodes) {
 
 // ----- ASH code
 
-static void CxiAshEnsureTreeElements(CxiHuffNode *nodes, int nNodes, int nMinNodes) {
+static void CxiAshEnsureTreeElements(CxiHuffNode *nodes, int nNodes) {
 	//count nodes
 	int nPresent = 0;
 	for (int i = 0; i < nNodes; i++) {
@@ -290,14 +271,15 @@ static void CxiAshEnsureTreeElements(CxiHuffNode *nodes, int nNodes, int nMinNod
 	}
 	
 	//have sufficient nodes?
-	if (nPresent >= nMinNodes) return;
+	//minimum is always 2
+	if (nPresent >= 2) return;
 	
 	//add dummy nodes
 	for (int i = 0; i < nNodes; i++) {
 		if (nodes[i].freq == 0) {
 			nodes[i].freq = 1;
 			nPresent++;
-			if (nPresent >= nMinNodes) return;
+			if (nPresent >= 2) return;
 		}
 	}
 }
@@ -329,8 +311,8 @@ static CxiLzToken *CxiAshTokenize(const unsigned char *buffer, unsigned int size
 		}
 		
 		//search backwards
-		unsigned int length, distance;
-		length = CxiSearchLZ(buffer, size, curpos, 1, (1 << nDstBits), (1 << nSymBits) - 1 - 0x100 + 3, &distance);
+		unsigned int distance;
+		unsigned int length = CxiSearchLZ(buffer, size, curpos, (1 << nDstBits), (1 << nSymBits) - 1 - 0x100 + 3, &distance);
 		
 		CxiLzToken *token = &tokenBuffer[nTokens++];
 		if (length >= 3) {
@@ -384,8 +366,8 @@ unsigned char *CxCompressAsh(const unsigned char *buffer, unsigned int size, int
 	}
 	
 	//pre-tree construction: ensure at least two nodes are used
-	CxiAshEnsureTreeElements(symNodes, nSymNodes, 2);
-	CxiAshEnsureTreeElements(dstNodes, nDstNodes, 2);
+	CxiAshEnsureTreeElements(symNodes, nSymNodes);
+	CxiAshEnsureTreeElements(dstNodes, nDstNodes);
 	
 	//construct trees
 	CxiHuffmanConstructTree(symNodes, nSymNodes);
@@ -418,8 +400,8 @@ unsigned char *CxCompressAsh(const unsigned char *buffer, unsigned int size, int
 	//encode data output
 	unsigned int symStreamSize = 0;
 	unsigned int dstStreamSize = 0;
-	void *symBytes = CxiBitStreamGetBytes(&symStream, 1, 1, 1, &symStreamSize);
-	void *dstBytes = CxiBitStreamGetBytes(&dstStream, 1, 1, 1, &dstStreamSize);
+	void *symBytes = CxiBitStreamGetBytes(&symStream, &symStreamSize);
+	void *dstBytes = CxiBitStreamGetBytes(&dstStream, &dstStreamSize);
 	
 	//write data out
 	unsigned char *out = (unsigned char *) calloc(0xC + symStreamSize + dstStreamSize, 1);
@@ -482,9 +464,8 @@ int main(int argc, char **argv) {
 	}
 	
 	//read in file
-	unsigned int size;
 	fseek(fp, 0, SEEK_END);
-	size = ftell(fp);
+	unsigned int size = ftell(fp);
 	fseek(fp, 0, SEEK_SET);
 	
 	unsigned char *inbuf = malloc(size);
@@ -497,9 +478,9 @@ int main(int argc, char **argv) {
 	free(inbuf);
 	
 	//get output file name (if not specified)
-	char strbuf[1024];
 	if (outpath == NULL) {
 		//if no output specified, append .ash
+		char strbuf[1024];
 		sprintf(strbuf, "%s.ash", argv[1]);
 		outpath = strbuf;
 	}
