@@ -256,8 +256,8 @@ int main(const int argc, char **argv) {
 	free(inbuf);
 
 	// Set output file name (if one is not specified).
+	char strbuf[1024];
 	if (outpath == NULL) {
-		char strbuf[1024];
 		// If no output file is specified, append .arc to the input name.
 		sprintf(strbuf, "%s.arc", argv[1]);
 		outpath = strbuf;

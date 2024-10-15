@@ -453,7 +453,7 @@ int main(int argc, char **argv) {
 			if (i < argc) nDistBits = atoi(argv[i]);
 		} else if (strcmp(argv[i], "-l") == 0) {
 			i++;
-			if (i < argc) nDistBits = atoi(argv[i]);
+			if (i < argc) nSymBits = atoi(argv[i]);
 		}
 	}
 	
@@ -478,9 +478,9 @@ int main(int argc, char **argv) {
 	free(inbuf);
 	
 	//get output file name (if not specified)
+	char strbuf[1024];
 	if (outpath == NULL) {
 		//if no output specified, append .ash
-		char strbuf[1024];
 		sprintf(strbuf, "%s.ash", argv[1]);
 		outpath = strbuf;
 	}
