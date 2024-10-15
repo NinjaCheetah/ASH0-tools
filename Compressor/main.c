@@ -33,8 +33,8 @@ typedef struct CxiLzToken_ {
 	union {
 		uint8_t symbol;
 		struct {
-			int16_t length;
-			int16_t distance;
+			uint16_t length;
+			uint16_t distance;
 		};
 	};
 } CxiLzToken;
