@@ -1,7 +1,7 @@
 TARGET_EXEC ?= ashcomp
 
 CC = gcc
-CFLAGS = -Wall -O2
+CFLAGS = -Wall -O3
 DBGFLAGS = -Wall -g
 
 all:
