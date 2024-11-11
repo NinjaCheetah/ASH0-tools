@@ -1,3 +1,9 @@
+/* ASH0-tools ashcomp "main.c"
+ * Copyright (c) 2024 Garhoogin and NinjaCheetah
+ * This code is licensed under the MIT license. See LICENSE for more information.
+ *
+ * This file implements the compression routines for compressing to Nintendo's ASH0 format used on the Wii.
+ */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
