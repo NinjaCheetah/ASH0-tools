@@ -10,11 +10,14 @@ This will compress a single file into an ASH file. If no output name is specifie
 
 Generally, optional arguments aren't necessary to compress a file. One exemption to this is when re-compressing ASH files for My Pokémon Ranch, which will not work if compressed with the default options. You'll need to specify the argument `-d 15` to set the distance tree leaf size to 15.
 
+There are three different levels of compression that can be used. The compression level you use shouldn't have any effect on how the programs will handle the files, but using higher compression levels can save you some space at the cost of time spent compressing.
+
 The full list of arguments can be found below:
 ```shell
 -o <file path> Specify output file path
 -d <int> Specify distance tree bits  (default: 11)
 -l <int> Specify length tree bits    (default:  9)
+-c <n> Specify compression strength (0=default, 1=moderate, 2=high)
 ```
 
 ## Decompressor
